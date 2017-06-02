@@ -1,0 +1,81 @@
+//-----------------CREATING GEOMETRY--------------------------------
+real L=5;
+real ratio=L;
+
+border circle(t=0,pi){x=0.5*cos(t)+2.5;y=0.5*sin(t)+3;label=1;};
+border pipe1a(t=0,4) {x=t; y=2; label=1;};
+border pipe1b(t=4,3) {x=t; y=3; label=1;};
+border pipe1c(t=2,0) {x=t; y=3; label=1;};
+
+border pipe2a(t=2,0) {x=4; y=t; label=1;};
+border pipe2b(t=0,L) {x=5; y=t; label=1;};
+border pipe2c(t=L,3) {x=4; y=t; label=1;};
+
+border left(t=3,2) {x=0; y=t; label=3;};
+border up(t=L,4) {x=t; y=5; label=2;};
+border down(t=4,L) {x=t; y=0; label=2;};
+
+int n=10;
+mesh Th= buildmesh(circle(ratio*n)+left(n)+pipe1a(ratio*n)+pipe2a(ratio*n)+up(n)+pipe2b(ratio*n)+pipe2c(ratio*n)+down(n)+pipe1b(ratio*n)+pipe1c(ratio*n));
+plot(Th,wait=1);
+
+//------------------------------------------------------------------
+fespace Xh(Th,P2);
+fespace Mh(Th,P1);
+Xh u2,v2;
+Xh u1,v1; 
+Mh p,q;
+
+//solve stokes problem for initial value of u
+solve Stokes ([u1,u2,p],[v1,v2,q],solver=Crout) =
+    int2d(Th)( ( dx(u1)*dx(v1) + dy(u1)*dy(v1)
+            +  dx(u2)*dx(v2) + dy(u2)*dy(v2) )
+            + p*q*(0.000001) 
+            + p*dx(v1)+ p*dy(v2)
+            + dx(u1)*q+ dy(u2)*q
+           )
+  + on(3,u1=1,u2=0) 
+  + on(1,u1=0,u2=0);
+  
+Xh psi,phi;
+solve streamlines(psi,phi) = 
+      int2d(Th)( dx(psi)*dx(phi) + dy(psi)*dy(phi))
+   +  int2d(Th)( -phi*(dy(u1)-dx(u2)))
+   +  on(1,psi=0);
+
+plot(psi);
+
+//-------------------NAVIER_STOKES EQUATION----------------------------
+int i=0;
+real  nu=1./100.;  //reynold = 100
+real dt=0.1;
+real alpha=1/dt;
+
+Xh up1,up2; 
+
+problem  NS ([u1,u2,p],[v1,v2,q],solver=Crout,init=i) =
+    int2d(Th)(
+             alpha*( u1*v1 + u2*v2) 
+            + nu * ( dx(u1)*dx(v1) + dy(u1)*dy(v1)
+            +  dx(u2)*dx(v2) + dy(u2)*dy(v2) )
+            + p*q*(0.000001) 
+            + p*dx(v1)+ p*dy(v2)
+            + dx(u1)*q+ dy(u2)*q
+           )
+  + int2d(Th) ( -alpha*convect([up1,up2],-dt,up1)*v1 -alpha*convect([up1,up2],-dt,up2)*v2 )
+  + on(3,u1=1,u2=0) 
+  + on(1,u1=0,u2=0)
+;
+
+for (i=0;i<=25;i++)
+ {
+   up1=u1;
+   up2=u2;
+   NS;   
+   streamlines;
+   plot(cmm=i,psi);
+ } ;
+
+plot(cmm="u1",u1,wait=1,fill=1);  
+plot(cmm="u1",u2,wait=1,fill=1);  
+plot(psi,wait=1);
